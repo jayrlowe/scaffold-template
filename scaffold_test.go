@@ -2,6 +2,10 @@ package main
 
 import (
 	"bytes"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -17,6 +21,63 @@ func TestScaffoldCreate(t *testing.T) {
 	expected := "Generating scaffold for project MyProject in /path/to/project\n"
 	if ok := buf.String(); ok != expected {
 		t.Errorf("Expected: %s, Got: %s", expected, ok)
+	}
+}
+
+func TestGenerateScaffold(t *testing.T) {
+	tempDir := t.TempDir()
+	testDir := filepath.Join(tempDir, "test_webapp")
+	expectedDir := "./projects/web"
+
+	s := Scaffold{
+		Name:          "web",
+		Location:      testDir,
+		GitRepository: "github.com/username/web",
+		Role:          true,
+	}
+
+	expectedOutput := fmt.Sprintf("Generating scaffold for project web in %s", testDir)
+	expectedFileContents := map[string]string{
+		filepath.Join(testDir, "go.mod"):                      filepath.Join(expectedDir, "go.mod"),
+		filepath.Join(testDir, "server.go"):                   filepath.Join(expectedDir, "server.go"),
+		filepath.Join(testDir, "handlers", "api.go"):          filepath.Join(expectedDir, "handlers/api.go"),
+		filepath.Join(testDir, "handlers", "index.go"):        filepath.Join(expectedDir, "handlers/index.go"),
+		filepath.Join(testDir, "handlers", "setup.go"):        filepath.Join(expectedDir, "handlers/setup.go"),
+		filepath.Join(testDir, "handlers", "healthcheck.go"):  filepath.Join(expectedDir, "handlers/healthcheck.go"),
+		filepath.Join(testDir, "static", "css", "styles.css"): filepath.Join(expectedDir, "static/css/styles.css"),
+		filepath.Join(testDir, "static", "js", "index.js"):    filepath.Join(expectedDir, "static/js/index.js"),
+	}
+
+	byteBuf := new(bytes.Buffer)
+	err := generateScaffold(byteBuf, s)
+	if err != nil {
+		t.Fatalf("Error generating scaffold: %v", err)
+	}
+
+	if output := byteBuf.String(); !strings.Contains(output, expectedOutput) {
+		t.Errorf("Expected output does not match. Expected substring:\n%s\nActual output:\n%s", expectedOutput, output)
+	}
+
+	for filePath, expectedPath := range expectedFileContents {
+		verifyFileContents(t, filePath, expectedPath)
+	}
+}
+
+func verifyFileContents(t *testing.T, filePath, expectedPath string) {
+	actualContents, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Errorf("Error reading file %s: %v", filePath, err)
+		return
+	}
+
+	expectedContents, err := os.ReadFile(expectedPath)
+	if err != nil {
+		t.Errorf("Error reading expected file %s: %v", expectedPath, err)
+		return
+	}
+
+	if !bytes.Equal(actualContents, expectedContents) {
+		t.Errorf("File contents mismatch for %s. Expected:\n%s\nActual:\n%s", filePath, expectedContents, actualContents)
 	}
 }
 
